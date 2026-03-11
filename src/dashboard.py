@@ -44,7 +44,7 @@ with tab1:
         weather = st.selectbox("Météo", ["sunny", "cloudy", "rain"])
     
     with col3:
-        year = st.number_input("Année", min_value=2020, max_value=2024, value=2024)
+        year = st.number_input("Année", min_value=2009, max_value=2024, value=2024)
     
     if st.button("Lancer la simulation", type="primary"):
         with st.spinner("Simulation en cours..."):

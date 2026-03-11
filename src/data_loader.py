@@ -74,9 +74,16 @@ class F1DataLoader:
         
         return clean_data[features], clean_data[target]
     
-    def get_recent_form(self, driver_id, n_races=5):
+    def get_recent_form(self, driver_id, n_races=5, year=None):
         """Calcule la forme récente d'un pilote"""
-        driver_results = self.results[self.results['driverId'] == driver_id].tail(n_races)
+        driver_results = self.results[self.results['driverId'] == driver_id]
+        
+        # Si une année est spécifiée, filtrer jusqu'à cette année
+        if year is not None:
+            race_ids = self.races[self.races['year'] <= year]['raceId']
+            driver_results = driver_results[driver_results['raceId'].isin(race_ids)]
+        
+        driver_results = driver_results.tail(n_races)
         
         if len(driver_results) == 0:
             return 0.5

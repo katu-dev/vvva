@@ -20,13 +20,20 @@ class F1Simulator:
         # Récupère l'historique du circuit
         circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
         
-        # Récupère les pilotes actifs récents
-        recent_races = self.data_loader.races[self.data_loader.races['year'] >= year - 1]
-        recent_results = self.data_loader.results[
-            self.data_loader.results['raceId'].isin(recent_races['raceId'])
+        # Récupère les pilotes actifs pour l'année sélectionnée
+        year_races = self.data_loader.races[self.data_loader.races['year'] == year]
+        
+        # Si aucune course pour cette année, prendre l'année la plus proche
+        if len(year_races) == 0:
+            available_years = self.data_loader.races['year'].unique()
+            closest_year = min(available_years, key=lambda x: abs(x - year))
+            year_races = self.data_loader.races[self.data_loader.races['year'] == closest_year]
+        
+        year_results = self.data_loader.results[
+            self.data_loader.results['raceId'].isin(year_races['raceId'])
         ]
         
-        active_drivers = recent_results.merge(
+        active_drivers = year_results.merge(
             self.data_loader.drivers, on='driverId'
         ).merge(
             self.data_loader.constructors, on='constructorId'
@@ -34,12 +41,15 @@ class F1Simulator:
         
         weather_data = self.weather_impact.get(weather, self.weather_impact['sunny'])
         
+        # Ensure we have enough drivers (at least 20 for a full grid)
+        num_drivers = min(len(active_drivers), 24)  # F1 grid can have up to 24 drivers
+        
         results = []
-        for _, driver in active_drivers.head(20).iterrows():
+        for _, driver in active_drivers.head(num_drivers).iterrows():
             driver_id = driver['driverId']
             
-            # Calcule la forme récente
-            recent_form = self.data_loader.get_recent_form(driver_id)
+            # Calcule la forme récente (jusqu'à l'année sélectionnée)
+            recent_form = self.data_loader.get_recent_form(driver_id, year=year)
             
             # Performance sur ce circuit - convertir position en numérique
             driver_circuit_history = circuit_history[circuit_history['driverId'] == driver_id]
