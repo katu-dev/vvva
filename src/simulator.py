@@ -5,52 +5,52 @@ from data_loader import F1DataLoader
 
 class F1Simulator:
     """Simulateur de Grand Prix de Formule 1 basé sur données réelles"""
-    
+
     def __init__(self):
         self.data_loader = F1DataLoader()
-        
+
         self.weather_impact = {
             'sunny': {'speed': 1.0, 'reliability': 0.95},
             'cloudy': {'speed': 0.98, 'reliability': 0.93},
             'rain': {'speed': 0.85, 'reliability': 0.80}
         }
-    
+
     def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
         """Simule une course complète basée sur les données historiques"""
         # Récupère l'historique du circuit
         circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
-        
+
         # Récupère les pilotes actifs pour l'année sélectionnée
         year_races = self.data_loader.races[self.data_loader.races['year'] == year]
-        
+
         # Si aucune course pour cette année, prendre l'année la plus proche
         if len(year_races) == 0:
             available_years = self.data_loader.races['year'].unique()
             closest_year = min(available_years, key=lambda x: abs(x - year))
             year_races = self.data_loader.races[self.data_loader.races['year'] == closest_year]
-        
+
         year_results = self.data_loader.results[
             self.data_loader.results['raceId'].isin(year_races['raceId'])
         ]
-        
+
         active_drivers = year_results.merge(
             self.data_loader.drivers, on='driverId'
         ).merge(
             self.data_loader.constructors, on='constructorId'
         )[['driverId', 'forename', 'surname', 'code', 'name']].drop_duplicates('driverId')
-        
+
         weather_data = self.weather_impact.get(weather, self.weather_impact['sunny'])
-        
+
         # Ensure we have enough drivers (at least 20 for a full grid)
         num_drivers = min(len(active_drivers), 24)  # F1 grid can have up to 24 drivers
-        
+
         results = []
         for _, driver in active_drivers.head(num_drivers).iterrows():
             driver_id = driver['driverId']
-            
+
             # Calcule la forme récente (jusqu'à l'année sélectionnée)
             recent_form = self.data_loader.get_recent_form(driver_id, year=year)
-            
+
             # Performance sur ce circuit - convertir position en numérique
             driver_circuit_history = circuit_history[circuit_history['driverId'] == driver_id]
             if len(driver_circuit_history) > 0:
@@ -60,14 +60,14 @@ class F1Simulator:
                     circuit_perf = 10
             else:
                 circuit_perf = 10
-            
+
             circuit_skill = 1 - (circuit_perf / 20)
-            
+
             # Performance finale
             performance = (recent_form * 0.7 + circuit_skill * 0.3)
             performance *= weather_data['speed']
             performance += np.random.normal(0, 0.08)
-            
+
             results.append({
                 'driver': f"{driver['forename']} {driver['surname']}",
                 'code': driver['code'],
@@ -75,13 +75,13 @@ class F1Simulator:
                 'performance': max(0, performance),
                 'grid_position': len(results) + 1
             })
-        
+
         df = pd.DataFrame(results)
         df = df.sort_values('performance', ascending=False).reset_index(drop=True)
         df['final_position'] = df.index + 1
-        
+
         return df[['final_position', 'driver', 'code', 'team', 'grid_position', 'performance']]
-    
+
     def get_available_circuits(self):
         """Retourne la liste des circuits disponibles"""
         return self.data_loader.circuits[['circuitId', 'name', 'location', 'country']]

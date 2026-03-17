@@ -62,9 +62,14 @@ vvva-f1/
 │   ├── predictor.py        # ML prediction model
 │   ├── simulator.py        # Grand Prix simulator
 │   └── dashboard.py        # Streamlit interface
+├── docs/
+│   └── DOCUMENTATION.md    # Documentation complète en français
 ├── requirements.txt
 └── README.md
 ```
+
+## Documentation
+La documentation complète en français (avec schémas et explications ligne par ligne) est disponible dans [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md).
 
 ## Data
 The data comes from the complete history of modern F1 and includes:
