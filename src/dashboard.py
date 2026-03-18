@@ -5,12 +5,107 @@ import plotly.graph_objects as go
 from simulator import F1Simulator
 from predictor import F1Predictor
 
-st.set_page_config(page_title="VVVA F1 Predictor", layout="wide")
+st.set_page_config(
+    page_title="VVVA F1 Predictor",
+    page_icon="🏎️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-st.title("VVVA - Simulateur et Prédicteur F1")
-st.caption("Basé sur données historiques réelles de F1")
+st.markdown("""
+<style>
+    /* Fond principal */
+    .stApp { background-color: #0e0e0e; color: #f0f0f0; }
 
-# Initialisation
+    /* Header custom */
+    .f1-header {
+        background: linear-gradient(135deg, #e10600 0%, #8b0000 100%);
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .f1-header h1 { color: white; margin: 0; font-size: 2rem; font-weight: 900; letter-spacing: 2px; }
+    .f1-header p  { color: rgba(255,255,255,0.75); margin: 0; font-size: 0.9rem; }
+
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; background: #1a1a1a; border-radius: 8px; padding: 4px; }
+    .stTabs [data-baseweb="tab"] { border-radius: 6px; color: #aaa; font-weight: 600; padding: 8px 20px; }
+    .stTabs [aria-selected="true"] { background: #e10600 !important; color: white !important; }
+
+    /* Metric cards */
+    [data-testid="metric-container"] {
+        background: #1a1a1a;
+        border: 1px solid #2a2a2a;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+    [data-testid="stMetricValue"] { color: #e10600; font-size: 2rem; font-weight: 900; }
+    [data-testid="stMetricLabel"] { color: #aaa; }
+
+    /* Bouton */
+    .stButton > button {
+        background: linear-gradient(135deg, #e10600, #ff4444);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        padding: 0.6rem 2rem;
+        transition: all 0.2s;
+    }
+    .stButton > button:hover { transform: scale(1.03); box-shadow: 0 4px 20px rgba(225,6,0,0.4); }
+
+    /* Selectbox & inputs */
+    .stSelectbox > div > div, .stNumberInput > div > div > input {
+        background: #1a1a1a !important;
+        border: 1px solid #333 !important;
+        color: #f0f0f0 !important;
+        border-radius: 8px !important;
+    }
+
+    /* Dataframe */
+    .stDataFrame { border-radius: 10px; overflow: hidden; }
+
+    /* Sidebar */
+    [data-testid="stSidebar"] { background: #111; border-right: 1px solid #222; }
+
+    /* Podium couleurs */
+    .pos-1 { color: #FFD700; font-weight: 900; }
+    .pos-2 { color: #C0C0C0; font-weight: 800; }
+    .pos-3 { color: #CD7F32; font-weight: 700; }
+
+    /* Section title */
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #e10600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        border-left: 3px solid #e10600;
+        padding-left: 10px;
+        margin: 1.2rem 0 0.8rem 0;
+    }
+    h2, h3 { color: #f0f0f0 !important; }
+
+    /* Success */
+    .stAlert { border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Header ──────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="f1-header">
+    <div>
+        <h1>🏎️ VVVA F1 PREDICTOR</h1>
+        <p>Simulateur & Prédicteur basé sur 15 ans de données réelles (2009 – 2024)</p>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Cache ────────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_simulator():
     return F1Simulator()
@@ -22,97 +117,224 @@ def load_predictor():
         scores = predictor.train()
     return predictor, scores
 
-simulator = load_simulator()
+simulator   = load_simulator()
 circuits_df = simulator.get_available_circuits()
 
-# Tabs
-tab1, tab2, tab3 = st.tabs(["Simulateur", "Prédicteur ML", "Statistiques"])
+WEATHER_LABELS = {"sunny": "☀️ Ensoleillé", "cloudy": "⛅ Nuageux", "rain": "🌧️ Pluie"}
+PLOTLY_THEME   = "plotly_dark"
 
+# ── Tabs ─────────────────────────────────────────────────────────────────────
+tab1, tab2, tab3 = st.tabs(["🏁  Simulateur", "🤖  Prédicteur ML", "📊  Statistiques"])
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 1 — Simulateur
+# ════════════════════════════════════════════════════════════════════════════
 with tab1:
-    st.header("Simulateur de Grand Prix")
+    st.markdown('<p class="section-title">Paramètres de la course</p>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
-
     with col1:
         selected_circuit = st.selectbox(
-            "Circuit",
+            "🏟️ Circuit",
             circuits_df['circuitId'].values,
-            format_func=lambda x: circuits_df[circuits_df['circuitId']==x]['name'].values[0]
+            format_func=lambda x: circuits_df[circuits_df['circuitId'] == x]['name'].values[0]
         )
-
     with col2:
-        weather = st.selectbox("Météo", ["sunny", "cloudy", "rain"])
-
+        weather_key = st.selectbox("🌤️ Météo", list(WEATHER_LABELS.keys()),
+                                   format_func=lambda x: WEATHER_LABELS[x])
     with col3:
-        year = st.number_input("Année", min_value=2009, max_value=2024, value=2024)
+        year = st.number_input("📅 Année", min_value=2009, max_value=2024, value=2024)
 
-    if st.button("Lancer la simulation", type="primary"):
+    circuit_info = circuits_df[circuits_df['circuitId'] == selected_circuit].iloc[0]
+    st.caption(f"📍 {circuit_info['name']} — {circuit_info['location']}, {circuit_info['country']}")
+
+    st.markdown("")
+    if st.button("🚦 Lancer la simulation", type="primary"):
         with st.spinner("Simulation en cours..."):
-            results = simulator.simulate_race(circuit_id=selected_circuit, weather=weather, year=year)
+            results = simulator.simulate_race(circuit_id=selected_circuit, weather=weather_key, year=year)
 
-        st.success("Simulation terminée!")
+        st.success(f"✅ Course simulée ! {len(results)} pilotes classés.")
 
-        col1, col2 = st.columns(2)
+        # ── Podium ──
+        st.markdown('<p class="section-title">Podium</p>', unsafe_allow_html=True)
+        medals = ["🥇", "🥈", "🥉"]
+        p_cols = st.columns(3)
+        for i, col in enumerate(p_cols):
+            row = results.iloc[i]
+            with col:
+                st.markdown(f"""
+                <div style="background:#1a1a1a;border-radius:12px;padding:1.2rem;text-align:center;
+                            border-top: 3px solid {'#FFD700' if i==0 else '#C0C0C0' if i==1 else '#CD7F32'}">
+                    <div style="font-size:2.5rem">{medals[i]}</div>
+                    <div style="font-size:1.2rem;font-weight:900;color:#f0f0f0">{row['driver']}</div>
+                    <div style="color:#aaa;font-size:0.85rem">{row['team']}</div>
+                    <div style="color:#e10600;font-weight:700;margin-top:4px">Score {row['performance']:.3f}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-        with col1:
-            st.subheader("Résultats de la course")
-            st.dataframe(results, use_container_width=True, hide_index=True)
+        st.markdown("")
 
-        with col2:
-            st.subheader("Performance par pilote")
+        # ── Tableau + Bar chart ──
+        col_left, col_right = st.columns([1, 1])
+
+        with col_left:
+            st.markdown('<p class="section-title">Classement complet</p>', unsafe_allow_html=True)
+            st.dataframe(
+                results.style.apply(
+                    lambda row: [
+                        "color: #FFD700; font-weight:900" if row['final_position'] == 1 else
+                        "color: #C0C0C0; font-weight:800" if row['final_position'] == 2 else
+                        "color: #CD7F32; font-weight:700" if row['final_position'] == 3 else ""
+                    ] * len(row),
+                    axis=1
+                ),
+                use_container_width=True,
+                hide_index=True
+            )
+
+        with col_right:
+            st.markdown('<p class="section-title">Performance Top 10</p>', unsafe_allow_html=True)
             fig = px.bar(
                 results.head(10),
-                x='code',
-                y='performance',
-                color='team',
-                title=f"Top 10 - {weather.capitalize()}"
+                x='code', y='performance', color='team',
+                template=PLOTLY_THEME,
+                title=f"Top 10 — {WEATHER_LABELS[weather_key]}",
+                color_discrete_sequence=px.colors.qualitative.Bold
+            )
+            fig.update_layout(
+                paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+                font_color='#f0f0f0', legend_title_text='Équipe',
+                xaxis_title="Pilote", yaxis_title="Score"
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("Progression Grid → Final")
+        # ── Line chart progression ──
+        st.markdown('<p class="section-title">Progression Grille → Arrivée (Top 10)</p>', unsafe_allow_html=True)
         fig2 = go.Figure()
-
-        for _, row in results.head(10).iterrows():
+        colors = px.colors.qualitative.Bold
+        for i, (_, row) in enumerate(results.head(10).iterrows()):
             fig2.add_trace(go.Scatter(
-                x=['Grid', 'Final'],
+                x=['Départ', 'Arrivée'],
                 y=[row['grid_position'], row['final_position']],
-                mode='lines+markers',
+                mode='lines+markers+text',
                 name=row['code'],
-                line=dict(width=2)
+                text=[row['code'], ""],
+                textposition="middle left",
+                line=dict(width=2.5, color=colors[i % len(colors)]),
+                marker=dict(size=8)
             ))
-
         fig2.update_layout(
-            title="Évolution des positions (Top 10)",
-            yaxis=dict(autorange='reversed', title='Position'),
-            height=400
+            template=PLOTLY_THEME,
+            paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+            font_color='#f0f0f0',
+            yaxis=dict(autorange='reversed', title='Position', gridcolor='#2a2a2a'),
+            xaxis=dict(gridcolor='#2a2a2a'),
+            height=420,
+            legend_title_text='Pilote'
         )
         st.plotly_chart(fig2, use_container_width=True)
 
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 2 — Prédicteur ML
+# ════════════════════════════════════════════════════════════════════════════
 with tab2:
-    st.header("Prédicteur Machine Learning")
-
     predictor, scores = load_predictor()
 
+    st.markdown('<p class="section-title">Performance du modèle</p>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Score Train", f"{scores['train_score']:.3f}")
+        st.metric("🎯 Score Entraînement", f"{scores['train_score']:.3f}")
     with col2:
-        st.metric("Score Test", f"{scores['test_score']:.3f}")
+        st.metric("🧪 Score Test", f"{scores['test_score']:.3f}",
+                  delta=f"{scores['test_score'] - scores['train_score']:.3f}")
     with col3:
-        st.metric("Échantillons", scores['n_samples'])
+        st.metric("📦 Échantillons", f"{scores['n_samples']:,}")
 
-    st.subheader("Importance des features")
+    st.markdown('<p class="section-title">Importance des variables</p>', unsafe_allow_html=True)
     importance = predictor.get_feature_importance()
-    fig = px.bar(importance, x='importance', y='feature', orientation='h')
+    fig = px.bar(
+        importance, x='importance', y='feature',
+        orientation='h', template=PLOTLY_THEME,
+        color='importance',
+        color_continuous_scale=[[0, '#8b0000'], [1, '#e10600']],
+        title="Quel facteur influence le plus la prédiction ?"
+    )
+    fig.update_layout(
+        paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+        font_color='#f0f0f0', showlegend=False,
+        coloraxis_showscale=False,
+        yaxis_title="", xaxis_title="Importance"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
-with tab3:
-    st.header("Statistiques des circuits")
-    st.dataframe(circuits_df, use_container_width=True, hide_index=True)
+    st.markdown('<p class="section-title">Comment fonctionne le modèle ?</p>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style="background:#1a1a1a;border-radius:10px;padding:1.2rem;border-left:3px solid #e10600">
+        <b style="color:#e10600">Random Forest</b> — 100 arbres de décision qui votent ensemble.<br><br>
+        Les variables d'entrée utilisées :
+        <ul style="color:#ccc;margin-top:8px">
+            <li><b>grid_position</b> — position sur la grille de départ</li>
+            <li><b>circuit_encoded</b> — identifiant numérique du circuit</li>
+            <li><b>driver_age</b> — âge du pilote au moment de la course</li>
+            <li><b>year</b> — année de la saison</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-st.sidebar.info("""
-**Projet VVVA**
-Prédiction de résultats F1 avec influence météo
-Données: 2009-2024
-""")
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 3 — Statistiques
+# ════════════════════════════════════════════════════════════════════════════
+with tab3:
+    st.markdown('<p class="section-title">Circuits disponibles</p>', unsafe_allow_html=True)
+
+    col_search, _ = st.columns([1, 2])
+    with col_search:
+        search = st.text_input("🔍 Rechercher un circuit", placeholder="Monaco, Spa...")
+
+    filtered = circuits_df
+    if search:
+        mask = circuits_df.apply(lambda r: search.lower() in str(r).lower(), axis=1)
+        filtered = circuits_df[mask]
+
+    st.dataframe(filtered, use_container_width=True, hide_index=True)
+    st.caption(f"{len(filtered)} circuit(s) affiché(s)")
+
+    st.markdown('<p class="section-title">Répartition par pays</p>', unsafe_allow_html=True)
+    country_counts = circuits_df['country'].value_counts().reset_index()
+    country_counts.columns = ['Pays', 'Circuits']
+    fig3 = px.bar(
+        country_counts.head(15), x='Pays', y='Circuits',
+        template=PLOTLY_THEME,
+        color='Circuits',
+        color_continuous_scale=[[0, '#8b0000'], [1, '#e10600']],
+        title="Top 15 pays avec le plus de circuits F1"
+    )
+    fig3.update_layout(
+        paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+        font_color='#f0f0f0', coloraxis_showscale=False
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+
+# ── Sidebar ──────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div style="text-align:center;padding:1rem 0">
+        <div style="font-size:3rem">🏎️</div>
+        <div style="font-size:1.3rem;font-weight:900;color:#e10600;letter-spacing:2px">VVVA F1</div>
+        <div style="color:#888;font-size:0.8rem">Race Prediction System</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("**📊 Données**")
+    st.markdown(f"- {len(circuits_df)} circuits")
+    st.markdown("- Saisons 2009 → 2024")
+    st.markdown("- Pilotes, équipes, résultats")
+
+    st.markdown("---")
+    st.markdown("**🌤️ Météo**")
+    for key, label in WEATHER_LABELS.items():
+        st.markdown(f"- {label}")
+
+    st.markdown("---")
+    st.caption("Projet VVVA · F1 Prediction")
