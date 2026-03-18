@@ -35,46 +35,42 @@ class F1Simulator:
             self.data_loader.constructors, on='constructorId'
         )[['driverId', 'forename', 'surname', 'code', 'name']].drop_duplicates('driverId')
 
+    def _compute_driver_performance(self, driver: pd.Series, circuit_history: pd.DataFrame,
+                                     weather_data: dict, year: int) -> float:
+        """Calcule le score de performance final d'un pilote pour une course"""
+        recent_form = self.data_loader.get_recent_form(driver['driverId'], year=year)
+
+        driver_circuit_history = circuit_history[circuit_history['driverId'] == driver['driverId']]
+        if len(driver_circuit_history) > 0:
+            circuit_positions = pd.to_numeric(driver_circuit_history['position'], errors='coerce')
+            circuit_perf = circuit_positions.mean()
+            if pd.isna(circuit_perf):
+                circuit_perf = 10
+        else:
+            circuit_perf = 10
+
+        circuit_skill = 1 - (circuit_perf / 20)
+
+        performance = (recent_form * 0.7 + circuit_skill * 0.3)
+        performance *= weather_data['speed']
+        performance += np.random.normal(0, 0.08)
+        return max(0, performance)
+
     def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
         """Simule une course complète basée sur les données historiques"""
         circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
         year_races = self._get_year_races(year)
-
         active_drivers = self._get_active_drivers(year_races)
         weather_data = self.weather_impact.get(weather, self.weather_impact['sunny'])
 
-        # Ensure we have enough drivers (at least 20 for a full grid)
-        num_drivers = min(len(active_drivers), 24)  # F1 grid can have up to 24 drivers
-
+        num_drivers = min(len(active_drivers), 24)
         results = []
         for _, driver in active_drivers.head(num_drivers).iterrows():
-            driver_id = driver['driverId']
-
-            # Calcule la forme récente (jusqu'à l'année sélectionnée)
-            recent_form = self.data_loader.get_recent_form(driver_id, year=year)
-
-            # Performance sur ce circuit - convertir position en numérique
-            driver_circuit_history = circuit_history[circuit_history['driverId'] == driver_id]
-            if len(driver_circuit_history) > 0:
-                circuit_positions = pd.to_numeric(driver_circuit_history['position'], errors='coerce')
-                circuit_perf = circuit_positions.mean()
-                if pd.isna(circuit_perf):
-                    circuit_perf = 10
-            else:
-                circuit_perf = 10
-
-            circuit_skill = 1 - (circuit_perf / 20)
-
-            # Performance finale
-            performance = (recent_form * 0.7 + circuit_skill * 0.3)
-            performance *= weather_data['speed']
-            performance += np.random.normal(0, 0.08)
-
             results.append({
                 'driver': f"{driver['forename']} {driver['surname']}",
                 'code': driver['code'],
                 'team': driver['name'],
-                'performance': max(0, performance),
+                'performance': self._compute_driver_performance(driver, circuit_history, weather_data, year),
                 'grid_position': len(results) + 1
             })
 
