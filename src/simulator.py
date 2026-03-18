@@ -24,21 +24,23 @@ class F1Simulator:
             year_races = self.data_loader.races[self.data_loader.races['year'] == closest_year]
         return year_races
 
-    def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
-        """Simule une course complète basée sur les données historiques"""
-        circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
-        year_races = self._get_year_races(year)
-
+    def _get_active_drivers(self, year_races: pd.DataFrame) -> pd.DataFrame:
+        """Retourne les pilotes actifs pour les courses données, sans doublons"""
         year_results = self.data_loader.results[
             self.data_loader.results['raceId'].isin(year_races['raceId'])
         ]
-
-        active_drivers = year_results.merge(
+        return year_results.merge(
             self.data_loader.drivers, on='driverId'
         ).merge(
             self.data_loader.constructors, on='constructorId'
         )[['driverId', 'forename', 'surname', 'code', 'name']].drop_duplicates('driverId')
 
+    def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
+        """Simule une course complète basée sur les données historiques"""
+        circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
+        year_races = self._get_year_races(year)
+
+        active_drivers = self._get_active_drivers(year_races)
         weather_data = self.weather_impact.get(weather, self.weather_impact['sunny'])
 
         # Ensure we have enough drivers (at least 20 for a full grid)
