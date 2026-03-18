@@ -15,19 +15,19 @@ class F1Simulator:
             'rain': {'speed': 0.85, 'reliability': 0.80}
         }
 
-    def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
-        """Simule une course complète basée sur les données historiques"""
-        # Récupère l'historique du circuit
-        circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
-
-        # Récupère les pilotes actifs pour l'année sélectionnée
+    def _get_year_races(self, year: int) -> pd.DataFrame:
+        """Retourne les courses de l'année demandée, ou de l'année la plus proche si absente"""
         year_races = self.data_loader.races[self.data_loader.races['year'] == year]
-
-        # Si aucune course pour cette année, prendre l'année la plus proche
         if len(year_races) == 0:
             available_years = self.data_loader.races['year'].unique()
             closest_year = min(available_years, key=lambda x: abs(x - year))
             year_races = self.data_loader.races[self.data_loader.races['year'] == closest_year]
+        return year_races
+
+    def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
+        """Simule une course complète basée sur les données historiques"""
+        circuit_history = self.data_loader.get_circuit_history(circuit_id, limit=20)
+        year_races = self._get_year_races(year)
 
         year_results = self.data_loader.results[
             self.data_loader.results['raceId'].isin(year_races['raceId'])
