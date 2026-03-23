@@ -6,7 +6,7 @@ from data_loader import F1DataLoader
 
 
 class F1Predictor:
-    """ML model trained on historical F1 data to predict 2026 race results"""
+    """ML model trained on historical F1 data to predict 2025 race results"""
 
     def __init__(self):
         self.model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -34,20 +34,18 @@ class F1Predictor:
 
     def predict_2026_race(self, circuit_id: int) -> pd.DataFrame:
         """
-        Predict finishing positions for a 2026 race on the given circuit.
+        Predict finishing positions for a 2025 race on the given circuit.
         Uses 2024 drivers as the base grid (latest known lineup).
         """
         if not self.is_trained:
             raise ValueError("Model must be trained before predicting")
 
         drivers = self.data_loader.get_drivers_for_year(2024)
-
-        # Encode circuit the same way as training
         circuit_code = self._circuit_cat.get(circuit_id, 0)
 
         rows = []
         for i, (_, driver) in enumerate(drivers.iterrows()):
-            age = 2026 - pd.to_datetime(
+            age = 2025 - pd.to_datetime(
                 self.data_loader.df[self.data_loader.df['driverId'] == driver['driverId']]['dob'].iloc[0],
                 errors='coerce'
             ).year if not self.data_loader.df[self.data_loader.df['driverId'] == driver['driverId']].empty else 30
@@ -60,7 +58,7 @@ class F1Predictor:
                 'grid_position': i + 1,
                 'circuit_encoded': circuit_code,
                 'driver_age': age,
-                'year': 2026
+                'year': 2025
             })
 
         df = pd.DataFrame(rows)

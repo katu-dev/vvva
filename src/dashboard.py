@@ -111,7 +111,7 @@ def load_simulator():
     return F1Simulator()
 
 @st.cache_resource
-def load_predictor():
+def load_predictor(_version=2):
     predictor = F1Predictor()
     with st.spinner("Entraînement du modèle ML..."):
         scores = predictor.train()
@@ -132,7 +132,7 @@ tab1, tab2, tab3 = st.tabs(["Simulateur", "Prédicteur ML", "Statistiques"])
 with tab1:
     st.markdown('<p class="section-title">Paramètres de la course</p>', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         selected_circuit = st.selectbox(
             "Circuit",
@@ -142,16 +142,14 @@ with tab1:
     with col2:
         weather_key = st.selectbox("Météo", list(WEATHER_LABELS.keys()),
                                    format_func=lambda x: WEATHER_LABELS[x])
-    with col3:
-        year = st.number_input("Année", min_value=2009, max_value=2024, value=2024)
 
     circuit_info = circuits_df[circuits_df['circuitId'] == selected_circuit].iloc[0]
-    st.caption(f"{circuit_info['name']} — {circuit_info['location']}, {circuit_info['country']}")
+    st.caption(f"{circuit_info['name']} — {circuit_info['location']}, {circuit_info['country']} · 2025 season")
 
     st.markdown("")
     if st.button("Lancer la simulation", type="primary"):
         with st.spinner("Simulation en cours..."):
-            results = simulator.simulate_race(circuit_id=selected_circuit, weather=weather_key, year=year)
+            results = simulator.simulate_race(circuit_id=selected_circuit, weather=weather_key, year=2025)
 
         st.success(f"Course simulée ! {len(results)} pilotes classés.")
 
@@ -254,7 +252,7 @@ with tab2:
 
     mode_col, circuit_col = st.columns([1, 2])
     with mode_col:
-        mode = st.radio("Mode", ["Predict 2026", "Real past results"])
+        mode = st.radio("Mode", ["Predict 2025", "Real past results"])
     with circuit_col:
         pred_circuit = st.selectbox(
             "Circuit",
@@ -263,8 +261,8 @@ with tab2:
             key="pred_circuit"
         )
 
-    if mode == "Predict 2026":
-        st.markdown('<p class="section-title">2026 Race Prediction</p>', unsafe_allow_html=True)
+    if mode == "Predict 2025":
+        st.markdown('<p class="section-title">2025 Race Prediction</p>', unsafe_allow_html=True)
         st.caption("Based on 2024 driver lineup, trained on 2009–2024 historical data.")
 
         pred_results = predictor.predict_2026_race(circuit_id=pred_circuit)
@@ -277,7 +275,7 @@ with tab2:
             fig = px.bar(
                 pred_results.head(10), x='code', y='predicted_position',
                 color='team', template=PLOTLY_THEME,
-                title="Predicted Top 10 — 2026",
+                title="Predicted Top 10 — 2025",
                 color_discrete_sequence=px.colors.qualitative.Bold
             )
             fig.update_layout(
@@ -373,7 +371,7 @@ with tab3:
 with st.sidebar:
     st.markdown("""
     <div style="text-align:center;padding:1rem 0">
-        <div style="font-size:3rem"><svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="F1--Streamline-Simple-Icons" height="48" width="48"><desc>F1 Streamline Icon: https://streamlinehq.com</desc><title>F1</title><path d="M9.6 11.24h7.91L19.75 9H9.39c-2.85 0 -3.62 0.34 -5.17 1.81C2.71 12.3 0 15 0 15h3.38c0.77 -0.75 2.2 -2.13 2.85 -2.75 0.92 -0.87 1.37 -1.01 3.37 -1.01zM20.39 9l-6 6H18l6 -6h-3.61zm-3.25 2.61H9.88c-2.22 0 -2.6 0.12 -3.55 1.07C5.44 13.57 4 15 4 15h3.15l0.75 -0.75c0.49 -0.49 0.75 -0.55 1.78 -0.55h5.37l2.09 -2.09z" fill="#ff0004" stroke-width="1"></path></svg></div>
+        <div style="font-size:3rem"><svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="F1--Streamline-Simple-Icons" height="96" width="96"><desc>F1 Streamline Icon: https://streamlinehq.com</desc><title>F1</title><path d="M9.6 11.24h7.91L19.75 9H9.39c-2.85 0 -3.62 0.34 -5.17 1.81C2.71 12.3 0 15 0 15h3.38c0.77 -0.75 2.2 -2.13 2.85 -2.75 0.92 -0.87 1.37 -1.01 3.37 -1.01zM20.39 9l-6 6H18l6 -6h-3.61zm-3.25 2.61H9.88c-2.22 0 -2.6 0.12 -3.55 1.07C5.44 13.57 4 15 4 15h3.15l0.75 -0.75c0.49 -0.49 0.75 -0.55 1.78 -0.55h5.37l2.09 -2.09z" fill="#ff0004" stroke-width="1"></path></svg></div>
         <div style="font-size:1.3rem;font-weight:900;color:#e10600;letter-spacing:2px">VVVA F1</div>
         <div style="color:#888;font-size:0.8rem">Race Prediction System</div>
     </div>

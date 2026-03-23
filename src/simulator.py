@@ -15,10 +15,11 @@ class F1Simulator:
             'rain': {'speed': 0.85}
         }
 
-    def simulate_race(self, circuit_id: int, weather: str, year: int = 2024) -> pd.DataFrame:
-        """Simulate a full race using historical driver and circuit data"""
+    def simulate_race(self, circuit_id: int, weather: str, year: int = 2025) -> pd.DataFrame:
+        """Simulate a 2025 race using 2024 driver lineup and historical circuit data"""
         weather_speed = self.weather_impact.get(weather, self.weather_impact['sunny'])['speed']
-        active_drivers = self.data_loader.get_drivers_for_year(year)
+        # Use 2024 as the latest known lineup
+        active_drivers = self.data_loader.get_drivers_for_year(2024)
 
         results = []
         for _, driver in active_drivers.iterrows():
