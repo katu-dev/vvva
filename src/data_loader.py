@@ -2,92 +2,83 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
+
 class F1DataLoader:
-    """Charge et prépare les données F1 depuis les CSV"""
+    """Loads and prepares F1 data from the merged CSV"""
 
     def __init__(self, data_path='csv'):
         self.data_path = Path(data_path)
-        self.races = None
-        self.results = None
-        self.drivers = None
+        self.df = None
         self.circuits = None
-        self.constructors = None
         self.load_data()
 
     def load_data(self):
-        """Charge tous les CSV nécessaires"""
-        self.races = pd.read_csv(self.data_path / 'races.csv')
-        self.results = pd.read_csv(self.data_path / 'results.csv')
-        self.drivers = pd.read_csv(self.data_path / 'drivers.csv')
-        self.circuits = pd.read_csv(self.data_path / 'circuits.csv')
-        self.constructors = pd.read_csv(self.data_path / 'constructors.csv')
+        """Load the merged CSV and derive circuit lookup"""
+        self.df = pd.read_csv(self.data_path / 'f1_data.csv')
+        self.df['position_num'] = pd.to_numeric(self.df['position'], errors='coerce')
+        self.df['grid'] = pd.to_numeric(self.df['grid'], errors='coerce').fillna(20)
+        self.df['date'] = pd.to_datetime(self.df['date'], errors='coerce')
+        self.df['driver_age'] = self.df['year'] - pd.to_datetime(self.df['dob'], errors='coerce').dt.year
 
-    def get_driver_stats(self, driver_id):
-        """Récupère les statistiques d'un pilote"""
-        driver_results = self.results[self.results['driverId'] == driver_id]
+        # Unique circuits table
+        self.circuits = (
+            self.df[['circuitId', 'circuit', 'location', 'country']]
+            .drop_duplicates('circuitId')
+            .rename(columns={'circuit': 'name'})
+            .sort_values('name')
+            .reset_index(drop=True)
+        )
 
-        # Convertir position en numérique
-        positions = pd.to_numeric(driver_results['position'], errors='coerce')
+    def get_drivers_for_year(self, year):
+        """Returns all drivers who raced in the given year"""
+        year_df = self.df[self.df['year'] == year]
+        if year_df.empty:
+            available = self.df['year'].unique()
+            year = min(available, key=lambda y: abs(y - year))
+            year_df = self.df[self.df['year'] == year]
 
-        return {
-            'total_races': len(driver_results),
-            'wins': len(positions[positions == 1]),
-            'podiums': len(positions[positions <= 3]),
-            'avg_position': positions.mean(),
-            'total_points': driver_results['points'].sum()
-        }
-
-    def get_circuit_history(self, circuit_id, limit=10):
-        """Récupère l'historique des courses sur un circuit"""
-        circuit_races = self.races[self.races['circuitId'] == circuit_id].tail(limit)
-        race_ids = circuit_races['raceId'].values
-
-        history = self.results[self.results['raceId'].isin(race_ids)]
-        history = history.merge(self.drivers, on='driverId', suffixes=('', '_driver'))
-        history = history.merge(circuit_races, on='raceId', suffixes=('', '_race'))
-        return history
-
-    def prepare_training_data(self):
-        """Prépare les données pour l'entraînement du modèle"""
-        # Merge des données avec suffixes pour éviter les conflits
-        data = self.results.merge(self.races, on='raceId', suffixes=('', '_race'))
-        data = data.merge(self.drivers, on='driverId', suffixes=('', '_driver'))
-        data = data.merge(self.circuits, on='circuitId', suffixes=('', '_circuit'))
-        data = data.merge(self.constructors, on='constructorId', suffixes=('', '_constructor'))
-
-        # Calcul des features
-        data['driver_age'] = pd.to_datetime(data['date']).dt.year - pd.to_datetime(data['dob']).dt.year
-        data['grid_position'] = data['grid'].fillna(20)
-
-        # Encodage des circuits
-        data['circuit_encoded'] = data['circuitId'].astype('category').cat.codes
-
-        # Sélection des features pertinentes
-        features = ['grid_position', 'circuit_encoded', 'driver_age', 'year']
-        target = 'position'
-
-        # Nettoyage - convertir position en numérique et filtrer les valeurs invalides
-        data['position'] = pd.to_numeric(data['position'], errors='coerce')
-        clean_data = data[features + [target]].dropna()
-        clean_data = clean_data[clean_data['position'] > 0]
-        clean_data = clean_data[clean_data['position'] <= 30]  # Positions valides uniquement
-
-        return clean_data[features], clean_data[target]
+        return (
+            year_df[['driverId', 'forename', 'surname', 'code', 'team']]
+            .drop_duplicates('driverId')
+            .reset_index(drop=True)
+        )
 
     def get_recent_form(self, driver_id, n_races=5, year=None):
-        """Calcule la forme récente d'un pilote"""
-        driver_results = self.results[self.results['driverId'] == driver_id]
-
-        # Si une année est spécifiée, filtrer jusqu'à cette année
+        """Recent average finishing position for a driver (up to given year)"""
+        driver_df = self.df[self.df['driverId'] == driver_id]
         if year is not None:
-            race_ids = self.races[self.races['year'] <= year]['raceId']
-            driver_results = driver_results[driver_results['raceId'].isin(race_ids)]
+            driver_df = driver_df[driver_df['year'] <= year]
+        driver_df = driver_df.tail(n_races)
 
-        driver_results = driver_results.tail(n_races)
-
-        if len(driver_results) == 0:
+        if driver_df.empty:
             return 0.5
 
-        # Convertir position en numérique et remplacer les valeurs invalides
-        positions = pd.to_numeric(driver_results['position'], errors='coerce').fillna(20)
-        return 1 - (positions.mean() / 20)
+        avg = driver_df['position_num'].mean()
+        if pd.isna(avg):
+            return 0.5
+        return 1 - (avg / 20)
+
+    def get_circuit_form(self, driver_id, circuit_id):
+        """Average finishing position for a driver on a specific circuit"""
+        sub = self.df[(self.df['driverId'] == driver_id) & (self.df['circuitId'] == circuit_id)]
+        if sub.empty:
+            return 10
+        avg = sub['position_num'].mean()
+        return avg if not pd.isna(avg) else 10
+
+    def prepare_training_data(self):
+        """Prepare features and target for ML training"""
+        df = self.df.dropna(subset=['position_num', 'grid', 'driver_age'])
+        df = df[(df['position_num'] > 0) & (df['position_num'] <= 30)]
+
+        circuit_encoded = df['circuitId'].astype('category').cat.codes
+
+        X = pd.DataFrame({
+            'grid_position': df['grid'].values,
+            'circuit_encoded': circuit_encoded.values,
+            'driver_age': df['driver_age'].values,
+            'year': df['year'].values,
+        })
+        y = df['position_num'].values
+
+        return X, y
