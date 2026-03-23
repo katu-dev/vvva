@@ -2,7 +2,10 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from data_loader import F1DataLoader
+try:
+    from data_loader import F1DataLoader
+except ImportError:
+    from src.data_loader import F1DataLoader
 
 
 class F1Predictor:
@@ -35,7 +38,7 @@ class F1Predictor:
     def predict_2026_race(self, circuit_id: int) -> pd.DataFrame:
         """
         Predict finishing positions for a 2025 race on the given circuit.
-        Uses 2024 drivers as the base grid (latest known lineup).
+        Uses 2024 drivers and their end-of-2024 standings as features.
         """
         if not self.is_trained:
             raise ValueError("Model must be trained before predicting")
@@ -43,29 +46,51 @@ class F1Predictor:
         drivers = self.data_loader.get_drivers_for_year(2024)
         circuit_code = self._circuit_cat.get(circuit_id, 0)
 
+        # End-of-2024 driver standings (last raceId of 2024 season)
+        last_race_2024 = self.data_loader.df[self.data_loader.df['year'] == 2024]['raceId'].max()
+        ds = self.data_loader._driver_standings
+        ds_2024 = ds[ds['raceId'] == last_race_2024].set_index('driverId')
+
+        # End-of-2024 constructor standings
+        cs = self.data_loader._constructor_standings
+        cs_2024 = cs[cs['raceId'] == last_race_2024].set_index('constructorId')
+
         rows = []
         for i, (_, driver) in enumerate(drivers.iterrows()):
-            age = 2025 - pd.to_datetime(
-                self.data_loader.df[self.data_loader.df['driverId'] == driver['driverId']]['dob'].iloc[0],
-                errors='coerce'
-            ).year if not self.data_loader.df[self.data_loader.df['driverId'] == driver['driverId']].empty else 30
+            did = driver['driverId']
+            cid = driver['constructorId']
+
+            driver_rows = self.data_loader.df[self.data_loader.df['driverId'] == did]
+            age = 2025 - pd.to_datetime(driver_rows['dob'].iloc[0], errors='coerce').year \
+                if not driver_rows.empty else 30
+
+            d_pts  = ds_2024.loc[did, 'points']   if did in ds_2024.index else 0
+            d_pos  = ds_2024.loc[did, 'position']  if did in ds_2024.index else 20
+            d_wins = ds_2024.loc[did, 'wins']      if did in ds_2024.index else 0
+            c_pts  = cs_2024.loc[cid, 'points']   if cid in cs_2024.index else 0
+            c_pos  = cs_2024.loc[cid, 'position']  if cid in cs_2024.index else 10
 
             rows.append({
-                'driverId': driver['driverId'],
-                'driver': f"{driver['forename']} {driver['surname']}",
-                'code': driver['code'],
-                'team': driver['team'],
-                'grid_position': i + 1,
-                'circuit_encoded': circuit_code,
-                'driver_age': age,
-                'year': 2025
+                'driver':               f"{driver['forename']} {driver['surname']}",
+                'code':                 driver['code'],
+                'team':                 driver['team'],
+                'quali_pos':            i + 1,
+                'grid_position':        i + 1,
+                'circuit_encoded':      circuit_code,
+                'driver_age':           age,
+                'year':                 2025,
+                'driver_champ_points':  d_pts,
+                'driver_champ_pos':     d_pos,
+                'driver_wins':          d_wins,
+                'constructor_points':   c_pts,
+                'constructor_pos':      c_pos,
+                'dnf_rate':             0.05,
             })
 
         df = pd.DataFrame(rows)
-        features = df[self.feature_names]
-        df['predicted_position'] = self.model.predict(features).round().astype(int).clip(1, 20)
+        df['predicted_position'] = self.model.predict(df[self.feature_names]).round().astype(int).clip(1, 20)
         df = df.sort_values('predicted_position').reset_index(drop=True)
-        df['predicted_position'] = range(1, len(df) + 1)  # deduplicate ranks
+        df['predicted_position'] = range(1, len(df) + 1)
 
         return df[['predicted_position', 'driver', 'code', 'team', 'grid_position']]
 

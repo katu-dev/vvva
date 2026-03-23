@@ -2,8 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from simulator import F1Simulator
-from predictor import F1Predictor
+try:
+    from simulator import F1Simulator
+    from predictor import F1Predictor
+except ImportError:
+    from src.simulator import F1Simulator
+    from src.predictor import F1Predictor
 
 st.set_page_config(
     page_title="VVVA F1 Predictor",
@@ -156,19 +160,33 @@ with tab1:
         # ── Podium ──
         st.markdown('<p class="section-title">Podium</p>', unsafe_allow_html=True)
         medals = ["🥇", "🥈", "🥉"]
+        borders = ['#FFD700', '#C0C0C0', '#CD7F32']
+        finishers = results[results['status'] == 'Classé'].reset_index(drop=True)
+        dnf_count = (results['status'] == 'DNF').sum()
+        if dnf_count:
+            st.info(f"{dnf_count} abandon(s) — météo : {WEATHER_LABELS[weather_key]}")
         p_cols = st.columns(3)
         for i, col in enumerate(p_cols):
-            row = results.iloc[i]
             with col:
-                st.markdown(f"""
-                <div style="background:#1a1a1a;border-radius:12px;padding:1.2rem;text-align:center;
-                            border-top: 3px solid {'#FFD700' if i==0 else '#C0C0C0' if i==1 else '#CD7F32'}">
-                    <div style="font-size:2.5rem">{medals[i]}</div>
-                    <div style="font-size:1.2rem;font-weight:900;color:#f0f0f0">{row['driver']}</div>
-                    <div style="color:#aaa;font-size:0.85rem">{row['team']}</div>
-                    <div style="color:#e10600;font-weight:700;margin-top:4px">Score {row['performance']:.3f}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                if i < len(finishers):
+                    row = finishers.iloc[i]
+                    st.markdown(f"""
+                    <div style="background:#1a1a1a;border-radius:12px;padding:1.2rem;text-align:center;
+                                border-top: 3px solid {borders[i]}">
+                        <div style="font-size:2.5rem">{medals[i]}</div>
+                        <div style="font-size:1.2rem;font-weight:900;color:#f0f0f0">{row['driver']}</div>
+                        <div style="color:#aaa;font-size:0.85rem">{row['team']}</div>
+                        <div style="color:#e10600;font-weight:700;margin-top:4px">Score {row['performance']:.3f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div style="background:#1a1a1a;border-radius:12px;padding:1.2rem;text-align:center;
+                                border-top: 3px solid #333">
+                        <div style="font-size:2.5rem">{medals[i]}</div>
+                        <div style="color:#555;font-size:0.9rem">N/A</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         st.markdown("")
 
@@ -367,6 +385,46 @@ with tab3:
     )
     st.plotly_chart(fig3, use_container_width=True)
 
+    # ── Impact météo sur les performances ────────────────────────────────────
+    st.markdown('<p class="section-title">Impact de la Météo sur les Performances</p>', unsafe_allow_html=True)
+    st.markdown("""
+    <div style="background:#1a1a1a;border-radius:10px;padding:1.2rem;border-left:3px solid #e10600;margin-bottom:1rem">
+        La météo agit sur <b style="color:#e10600">deux dimensions indépendantes</b> :<br>
+        — <b>Vitesse</b> : multiplicateur appliqué au score de performance de chaque pilote<br>
+        — <b>Fiabilité</b> : probabilité de terminer la course (la pluie expose à 20 % de risque d'abandon)
+    </div>
+    """, unsafe_allow_html=True)
+
+    weather_df = pd.DataFrame({
+        'Conditions':            ['☀️ Ensoleillé', '⛅ Nuageux', '🌧️ Pluie'],
+        'Multiplicateur vitesse': [1.00, 0.98, 0.85],
+        'Risque abandon (%)':     [5,    7,    20],
+    })
+    col_w1, col_w2 = st.columns(2)
+    with col_w1:
+        fig_speed = px.bar(
+            weather_df, x='Conditions', y='Multiplicateur vitesse',
+            template=PLOTLY_THEME, range_y=[0.80, 1.05],
+            color='Multiplicateur vitesse',
+            color_continuous_scale=[[0, '#8b0000'], [1, '#e10600']],
+            title="Multiplicateur de vitesse par météo"
+        )
+        fig_speed.update_layout(paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+                                font_color='#f0f0f0', coloraxis_showscale=False)
+        st.plotly_chart(fig_speed, use_container_width=True)
+    with col_w2:
+        fig_dnf = px.bar(
+            weather_df, x='Conditions', y='Risque abandon (%)',
+            template=PLOTLY_THEME,
+            color='Risque abandon (%)',
+            color_continuous_scale=[[0, '#1a6b00'], [0.5, '#e18800'], [1, '#e10600']],
+            title="Risque d'abandon (DNF) par météo"
+        )
+        fig_dnf.update_layout(paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+                              font_color='#f0f0f0', coloraxis_showscale=False)
+        st.plotly_chart(fig_dnf, use_container_width=True)
+    st.dataframe(weather_df, use_container_width=True, hide_index=True)
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
@@ -384,9 +442,14 @@ with st.sidebar:
     st.markdown("- Pilotes, équipes, résultats")
 
     st.markdown("---")
-    st.markdown("**Météo**")
-    for key, label in WEATHER_LABELS.items():
-        st.markdown(f"- {label}")
+    st.markdown("**Impact météo**")
+    weather_sidebar = {
+        "sunny":  ("☀️ Ensoleillé", "×1.00",  "5% DNF"),
+        "cloudy": ("⛅ Nuageux",    "×0.98",  "7% DNF"),
+        "rain":   ("🌧️ Pluie",     "×0.85", "20% DNF"),
+    }
+    for label, speed, dnf in weather_sidebar.values():
+        st.markdown(f"- {label} — vitesse `{speed}` — `{dnf}`")
 
     st.markdown("---")
     st.caption("Projet VVVA · F1 Prediction")
