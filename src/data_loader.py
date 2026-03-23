@@ -67,11 +67,13 @@ class F1DataLoader:
         return avg if not pd.isna(avg) else 10
 
     def prepare_training_data(self):
-        """Prepare features and target for ML training"""
+        """Prepare features and target for ML training, also return circuit encoding map"""
         df = self.df.dropna(subset=['position_num', 'grid', 'driver_age'])
         df = df[(df['position_num'] > 0) & (df['position_num'] <= 30)]
 
-        circuit_encoded = df['circuitId'].astype('category').cat.codes
+        circuit_series = df['circuitId'].astype('category')
+        circuit_cat = dict(zip(circuit_series.cat.categories, circuit_series.cat.codes))
+        circuit_encoded = circuit_series.cat.codes
 
         X = pd.DataFrame({
             'grid_position': df['grid'].values,
@@ -81,4 +83,8 @@ class F1DataLoader:
         })
         y = df['position_num'].values
 
-        return X, y
+        return X, y, circuit_cat
+
+    def get_available_years_for_circuit(self, circuit_id: int):
+        """Returns sorted list of years with race data for a given circuit"""
+        return sorted(self.df[self.df['circuitId'] == circuit_id]['year'].unique(), reverse=True)

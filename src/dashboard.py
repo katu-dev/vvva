@@ -240,46 +240,100 @@ with tab1:
 with tab2:
     predictor, scores = load_predictor()
 
-    st.markdown('<p class="section-title">Performance du modèle</p>', unsafe_allow_html=True)
+    st.markdown('<p class="section-title">Model Performance</p>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Score Entraînement", f"{scores['train_score'] * 100:.1f}%")
+        st.metric("Train Score", f"{scores['train_score'] * 100:.1f}%")
     with col2:
-        st.metric("Score Test", f"{scores['test_score'] * 100:.1f}%",
+        st.metric("Test Score", f"{scores['test_score'] * 100:.1f}%",
                   delta=f"{(scores['test_score'] - scores['train_score']) * 100:.1f}%")
     with col3:
-        st.metric("Échantillons", f"{scores['n_samples']:,}")
+        st.metric("Samples", f"{scores['n_samples']:,}")
 
-    st.markdown('<p class="section-title">Importance des variables</p>', unsafe_allow_html=True)
+    st.markdown("---")
+
+    mode_col, circuit_col = st.columns([1, 2])
+    with mode_col:
+        mode = st.radio("Mode", ["Predict 2026", "Real past results"])
+    with circuit_col:
+        pred_circuit = st.selectbox(
+            "Circuit",
+            circuits_df['circuitId'].values,
+            format_func=lambda x: circuits_df[circuits_df['circuitId'] == x]['name'].values[0],
+            key="pred_circuit"
+        )
+
+    if mode == "Predict 2026":
+        st.markdown('<p class="section-title">2026 Race Prediction</p>', unsafe_allow_html=True)
+        st.caption("Based on 2024 driver lineup, trained on 2009–2024 historical data.")
+
+        pred_results = predictor.predict_2026_race(circuit_id=pred_circuit)
+        col_left, col_right = st.columns([1, 1])
+
+        with col_left:
+            st.dataframe(pred_results, use_container_width=True, hide_index=True)
+
+        with col_right:
+            fig = px.bar(
+                pred_results.head(10), x='code', y='predicted_position',
+                color='team', template=PLOTLY_THEME,
+                title="Predicted Top 10 — 2026",
+                color_discrete_sequence=px.colors.qualitative.Bold
+            )
+            fig.update_layout(
+                paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+                font_color='#f0f0f0', yaxis=dict(autorange='reversed', title='Predicted Position'),
+                xaxis_title="Driver"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        available_years = predictor.data_loader.get_available_years_for_circuit(pred_circuit)
+        if not available_years:
+            st.warning("No historical data for this circuit.")
+        else:
+            selected_year = st.selectbox("Year", available_years)
+            real = predictor.get_real_results(circuit_id=pred_circuit, year=selected_year)
+
+            if real.empty:
+                st.warning("No results found for this race.")
+            else:
+                st.markdown(f'<p class="section-title">Real Results — {selected_year}</p>', unsafe_allow_html=True)
+                col_left, col_right = st.columns([1, 1])
+
+                with col_left:
+                    st.dataframe(real, use_container_width=True, hide_index=True)
+
+                with col_right:
+                    fig = px.bar(
+                        real.head(10), x='code', y='points',
+                        color='team', template=PLOTLY_THEME,
+                        title=f"Points scored — Top 10 ({selected_year})",
+                        color_discrete_sequence=px.colors.qualitative.Bold
+                    )
+                    fig.update_layout(
+                        paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
+                        font_color='#f0f0f0', xaxis_title="Driver", yaxis_title="Points"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown('<p class="section-title">Feature Importance</p>', unsafe_allow_html=True)
     importance = predictor.get_feature_importance()
-    fig = px.bar(
+    fig_imp = px.bar(
         importance, x='importance', y='feature',
         orientation='h', template=PLOTLY_THEME,
         color='importance',
         color_continuous_scale=[[0, '#8b0000'], [1, '#e10600']],
-        title="Quel facteur influence le plus la prédiction ?"
+        title="What factors influence the prediction most?"
     )
-    fig.update_layout(
+    fig_imp.update_layout(
         paper_bgcolor='#1a1a1a', plot_bgcolor='#1a1a1a',
         font_color='#f0f0f0', showlegend=False,
         coloraxis_showscale=False,
         yaxis_title="", xaxis_title="Importance"
     )
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.markdown('<p class="section-title">Comment fonctionne le modèle ?</p>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="background:#1a1a1a;border-radius:10px;padding:1.2rem;border-left:3px solid #e10600">
-        <b style="color:#e10600">Random Forest</b> — 100 arbres de décision qui votent ensemble.<br><br>
-        Les variables d'entrée utilisées :
-        <ul style="color:#ccc;margin-top:8px">
-            <li><b>grid_position</b> — position sur la grille de départ</li>
-            <li><b>circuit_encoded</b> — identifiant numérique du circuit</li>
-            <li><b>driver_age</b> — âge du pilote au moment de la course</li>
-            <li><b>year</b> — année de la saison</li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+    st.plotly_chart(fig_imp, use_container_width=True)
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Statistiques
