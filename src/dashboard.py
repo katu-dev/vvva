@@ -7,7 +7,7 @@ from predictor import F1Predictor
 
 st.set_page_config(
     page_title="VVVA F1 Predictor",
-    page_icon="🏎️",
+    page_icon="icon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -99,7 +99,7 @@ st.markdown("""
 st.markdown("""
 <div class="f1-header">
     <div>
-        <h1>🏎️ VVVA F1 PREDICTOR</h1>
+        <h1>VVVA - FORMULA 1 RACE SIMULATOR</h1>
         <p>Simulateur & Prédicteur basé sur 15 ans de données réelles (2009 – 2024)</p>
     </div>
 </div>
@@ -120,11 +120,11 @@ def load_predictor():
 simulator   = load_simulator()
 circuits_df = simulator.get_available_circuits()
 
-WEATHER_LABELS = {"sunny": "☀️ Ensoleillé", "cloudy": "⛅ Nuageux", "rain": "🌧️ Pluie"}
+WEATHER_LABELS = {"sunny": "Ensoleillé", "cloudy": "Nuageux", "rain": "Pluie"}
 PLOTLY_THEME   = "plotly_dark"
 
 # ── Tabs ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3 = st.tabs(["🏁  Simulateur", "🤖  Prédicteur ML", "📊  Statistiques"])
+tab1, tab2, tab3 = st.tabs(["Simulateur", "Prédicteur ML", "Statistiques"])
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 1 — Simulateur
@@ -135,25 +135,25 @@ with tab1:
     col1, col2, col3 = st.columns(3)
     with col1:
         selected_circuit = st.selectbox(
-            "🏟️ Circuit",
+            "Circuit",
             circuits_df['circuitId'].values,
             format_func=lambda x: circuits_df[circuits_df['circuitId'] == x]['name'].values[0]
         )
     with col2:
-        weather_key = st.selectbox("🌤️ Météo", list(WEATHER_LABELS.keys()),
+        weather_key = st.selectbox("Météo", list(WEATHER_LABELS.keys()),
                                    format_func=lambda x: WEATHER_LABELS[x])
     with col3:
-        year = st.number_input("📅 Année", min_value=2009, max_value=2024, value=2024)
+        year = st.number_input("Année", min_value=2009, max_value=2024, value=2024)
 
     circuit_info = circuits_df[circuits_df['circuitId'] == selected_circuit].iloc[0]
-    st.caption(f"📍 {circuit_info['name']} — {circuit_info['location']}, {circuit_info['country']}")
+    st.caption(f"{circuit_info['name']} — {circuit_info['location']}, {circuit_info['country']}")
 
     st.markdown("")
-    if st.button("🚦 Lancer la simulation", type="primary"):
+    if st.button("Lancer la simulation", type="primary"):
         with st.spinner("Simulation en cours..."):
             results = simulator.simulate_race(circuit_id=selected_circuit, weather=weather_key, year=year)
 
-        st.success(f"✅ Course simulée ! {len(results)} pilotes classés.")
+        st.success(f"Course simulée ! {len(results)} pilotes classés.")
 
         # ── Podium ──
         st.markdown('<p class="section-title">Podium</p>', unsafe_allow_html=True)
@@ -243,12 +243,12 @@ with tab2:
     st.markdown('<p class="section-title">Performance du modèle</p>', unsafe_allow_html=True)
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("🎯 Score Entraînement", f"{scores['train_score']:.3f}")
+        st.metric("Score Entraînement", f"{scores['train_score'] * 100:.1f}%")
     with col2:
-        st.metric("🧪 Score Test", f"{scores['test_score']:.3f}",
-                  delta=f"{scores['test_score'] - scores['train_score']:.3f}")
+        st.metric("Score Test", f"{scores['test_score'] * 100:.1f}%",
+                  delta=f"{(scores['test_score'] - scores['train_score']) * 100:.1f}%")
     with col3:
-        st.metric("📦 Échantillons", f"{scores['n_samples']:,}")
+        st.metric("Échantillons", f"{scores['n_samples']:,}")
 
     st.markdown('<p class="section-title">Importance des variables</p>', unsafe_allow_html=True)
     importance = predictor.get_feature_importance()
@@ -289,7 +289,7 @@ with tab3:
 
     col_search, _ = st.columns([1, 2])
     with col_search:
-        search = st.text_input("🔍 Rechercher un circuit", placeholder="Monaco, Spa...")
+        search = st.text_input("Rechercher un circuit", placeholder="Monaco, Spa...")
 
     filtered = circuits_df
     if search:
@@ -319,20 +319,20 @@ with tab3:
 with st.sidebar:
     st.markdown("""
     <div style="text-align:center;padding:1rem 0">
-        <div style="font-size:3rem">🏎️</div>
+        <div style="font-size:3rem"><svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="F1--Streamline-Simple-Icons" height="48" width="48"><desc>F1 Streamline Icon: https://streamlinehq.com</desc><title>F1</title><path d="M9.6 11.24h7.91L19.75 9H9.39c-2.85 0 -3.62 0.34 -5.17 1.81C2.71 12.3 0 15 0 15h3.38c0.77 -0.75 2.2 -2.13 2.85 -2.75 0.92 -0.87 1.37 -1.01 3.37 -1.01zM20.39 9l-6 6H18l6 -6h-3.61zm-3.25 2.61H9.88c-2.22 0 -2.6 0.12 -3.55 1.07C5.44 13.57 4 15 4 15h3.15l0.75 -0.75c0.49 -0.49 0.75 -0.55 1.78 -0.55h5.37l2.09 -2.09z" fill="#ff0004" stroke-width="1"></path></svg></div>
         <div style="font-size:1.3rem;font-weight:900;color:#e10600;letter-spacing:2px">VVVA F1</div>
         <div style="color:#888;font-size:0.8rem">Race Prediction System</div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("**📊 Données**")
+    st.markdown("**Données**")
     st.markdown(f"- {len(circuits_df)} circuits")
     st.markdown("- Saisons 2009 → 2024")
     st.markdown("- Pilotes, équipes, résultats")
 
     st.markdown("---")
-    st.markdown("**🌤️ Météo**")
+    st.markdown("**Météo**")
     for key, label in WEATHER_LABELS.items():
         st.markdown(f"- {label}")
 
